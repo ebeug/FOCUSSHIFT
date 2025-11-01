@@ -11,7 +11,7 @@ class AppManager {
     static let shared = AppManager()
 
     /// Categorize an app based on its bundle ID
-    func categorizeApp(bundleID: String) -> App.AppCategory {
+    func categorizeApp(bundleID: String) -> BlockedApp.AppCategory {
         // Check essential apps (can't be blocked)
         if DefaultApps.essentialBundleIDs.contains(bundleID) {
             return .essential
@@ -42,7 +42,7 @@ class AppManager {
     }
 
     /// Group apps by category
-    func groupAppsByCategory(_ apps: [App]) -> [App.AppCategory: [App]] {
+    func groupAppsByCategory(_ apps: [BlockedApp]) -> [BlockedApp.AppCategory: [BlockedApp]] {
         Dictionary(grouping: apps, by: { $0.category })
     }
 }

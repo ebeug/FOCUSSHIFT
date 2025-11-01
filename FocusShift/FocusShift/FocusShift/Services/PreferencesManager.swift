@@ -51,15 +51,15 @@ class PreferencesManager {
 
     // MARK: - Custom Apps
 
-    func saveApps(_ apps: [App]) {
+    func saveApps(_ apps: [BlockedApp]) {
         if let encoded = try? JSONEncoder().encode(apps) {
             defaults.set(encoded, forKey: Keys.customApps)
         }
     }
 
-    func loadApps() -> [App]? {
+    func loadApps() -> [BlockedApp]? {
         guard let data = defaults.data(forKey: Keys.customApps) else { return nil }
-        return try? JSONDecoder().decode([App].self, from: data)
+        return try? JSONDecoder().decode([BlockedApp].self, from: data)
     }
 
     // MARK: - Focus Session

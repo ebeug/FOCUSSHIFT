@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var apps: [App] = []
-    @State private var selectedCategory: App.AppCategory = .social
+    @State private var apps: [BlockedApp] = []
+    @State private var selectedCategory: BlockedApp.AppCategory = .social
     @State private var blockedDomains: [String] = []
     @State private var newDomain = ""
     @State private var isRefreshing = false
@@ -23,7 +23,7 @@ struct SettingsView: View {
                     .font(.headline)
                     .padding()
 
-                List(App.AppCategory.allCases, id: \.self, selection: $selectedCategory) { category in
+                List(BlockedApp.AppCategory.allCases, id: \.self, selection: $selectedCategory) { category in
                     HStack {
                         Text(category.displayName)
                         Spacer()
@@ -120,7 +120,7 @@ struct SettingsView: View {
 
     // MARK: - Computed Properties
 
-    private var filteredApps: [App] {
+    private var filteredApps: [BlockedApp] {
         let categoryApps = appsInCategory(selectedCategory)
         if searchText.isEmpty {
             return categoryApps
@@ -131,12 +131,12 @@ struct SettingsView: View {
         }
     }
 
-    private func appsInCategory(_ category: App.AppCategory) -> [App] {
+    private func appsInCategory(_ category: BlockedApp.AppCategory) -> [BlockedApp] {
         apps.filter { $0.category == category }
             .sorted { $0.name < $1.name }
     }
 
-    private func binding(for app: App) -> Binding<App> {
+    private func binding(for app: BlockedApp) -> Binding<BlockedApp> {
         guard let index = apps.firstIndex(where: { $0.id == app.id }) else {
             fatalError("App not found")
         }
@@ -194,7 +194,7 @@ struct SettingsView: View {
 // MARK: - App List Item
 
 struct AppListItemView: View {
-    @Binding var app: App
+    @Binding var app: BlockedApp
 
     var body: some View {
         HStack {
@@ -217,7 +217,7 @@ struct AppListItemView: View {
 
             if app.category != .essential {
                 Toggle("Block when shifted", isOn: $app.isBlockedWhenShifted)
-                    .onChange(of: app.isBlockedWhenShifted) { _ in
+                    .onChange(of: app.isBlockedWhenShifted) {
                         saveApps()
                     }
             }
@@ -230,9 +230,6 @@ struct AppListItemView: View {
         PreferencesManager.shared.saveApps([app])
     }
 }
-
-// Add allCases to AppCategory
-extension App.AppCategory: CaseIterable {}
 
 #Preview {
     SettingsView()

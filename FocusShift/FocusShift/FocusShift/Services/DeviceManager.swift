@@ -89,7 +89,7 @@ class DeviceManager: ObservableObject {
         try profileXML.write(toFile: profilePath, atomically: true, encoding: .utf8)
 
         // Install the profile on the iPhone
-        try await runCommand([cfgutilPath, "install-profile", profilePath])
+        _ = try await runCommand([cfgutilPath, "install-profile", profilePath])
 
         await MainActor.run {
             isShifted = true
@@ -130,7 +130,7 @@ class DeviceManager: ObservableObject {
         }
 
         // Remove the profile from the iPhone
-        try await runCommand([cfgutilPath, "remove-profile", profileIdentifier])
+        _ = try await runCommand([cfgutilPath, "remove-profile", profileIdentifier])
 
         await MainActor.run {
             isShifted = false
@@ -145,14 +145,14 @@ class DeviceManager: ObservableObject {
     // MARK: - App Management
 
     /// Fetch list of installed apps from the iPhone
-    func fetchInstalledApps() async throws -> [App] {
+    func fetchInstalledApps() async throws -> [BlockedApp] {
         let output = try await runCommand([cfgutilPath, "list-apps"])
 
         // Parse the output to extract app bundle IDs
         let lines = output.components(separatedBy: .newlines)
             .filter { !$0.isEmpty && !$0.hasPrefix("ECID") }
 
-        var apps: [App] = []
+        var apps: [BlockedApp] = []
 
         for line in lines {
             // Expected format: "com.example.app    AppName"
@@ -165,7 +165,7 @@ class DeviceManager: ObservableObject {
             // Determine category based on bundle ID
             let category = AppManager.shared.categorizeApp(bundleID: bundleID)
 
-            let app = App(
+            let app = BlockedApp(
                 id: bundleID,
                 name: appName,
                 iconData: nil,
@@ -194,7 +194,7 @@ class DeviceManager: ObservableObject {
             }
         }
 
-        try await runCommand([cfgutilPath, "remove-supervision"])
+        _ = try await runCommand([cfgutilPath, "remove-supervision"])
 
         await MainActor.run {
             connectedDevice = nil

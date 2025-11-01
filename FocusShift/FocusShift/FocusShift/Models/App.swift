@@ -7,14 +7,14 @@
 
 import Foundation
 
-struct App: Identifiable, Codable, Hashable {
+struct BlockedApp: Identifiable, Codable, Hashable {
     let id: String                      // Bundle ID (e.g., "com.burbn.instagram")
     let name: String                    // Display name (e.g., "Instagram")
     var iconData: Data?                 // App icon (optional, for future use)
     var category: AppCategory           // What type of app is this?
     var isBlockedWhenShifted: Bool      // Should this app be hidden when shifted?
 
-    enum AppCategory: String, Codable {
+    enum AppCategory: String, Codable, CaseIterable {
         case essential      // Can't be blocked (Phone, Messages, Settings)
         case productivity   // Available by default (Notes, Calendar, Banking)
         case social         // Blocked by default (Instagram, Twitter, Facebook)
