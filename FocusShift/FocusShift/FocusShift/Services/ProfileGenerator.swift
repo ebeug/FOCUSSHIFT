@@ -60,6 +60,8 @@ struct ProfileGenerator {
             <string>com.focusshift.restrictions.webfilter</string>
             <key>PayloadUUID</key>
             <string>\(UUID().uuidString)</string>
+            <key>ContentFilterUUID</key>
+            <string>\(UUID().uuidString)</string>
             <key>PayloadDisplayName</key>
             <string>Web Content Filter</string>
             <key>FilterType</key>

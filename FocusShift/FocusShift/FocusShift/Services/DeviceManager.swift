@@ -21,6 +21,14 @@ class DeviceManager: ObservableObject {
     // Profile identifier (must match in all profile operations)
     private let profileIdentifier = "com.focusshift.restrictions"
 
+    // MARK: - Supervision Status
+
+    /// Check if the connected device is supervised
+    func isDeviceSupervised() async throws -> Bool {
+        let output = try await runCommand([cfgutilPath, "get", "IsSupervised"])
+        return output.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+    }
+
     // MARK: - Device Detection
 
     /// Detect if an iPhone is connected via USB or WiFi
@@ -28,7 +36,7 @@ class DeviceManager: ObservableObject {
         let output = try await runCommand([cfgutilPath, "list"])
 
         // Parse the output to extract device info
-        // Format is typically: "UDID    Name"
+        // Format: "Type: iPhone16,2	ECID: 0x...	UDID: 00008130-... Location: 0x... Name: YourName"
         guard !output.isEmpty else {
             return nil
         }
@@ -38,15 +46,27 @@ class DeviceManager: ObservableObject {
             return nil
         }
 
-        // Parse UDID and name from the line
-        let components = firstLine.split(separator: "\t").map(String.init)
-        guard components.count >= 2 else {
+        // Extract UDID and Name from the line
+        var udid = ""
+        var deviceName = "iPhone"
+
+        let parts = firstLine.components(separatedBy: "\t")
+        for part in parts {
+            let trimmed = part.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("UDID:") {
+                udid = trimmed.replacingOccurrences(of: "UDID: ", with: "").trimmingCharacters(in: .whitespaces)
+            } else if trimmed.hasPrefix("Name:") {
+                deviceName = trimmed.replacingOccurrences(of: "Name: ", with: "").trimmingCharacters(in: .whitespaces)
+            }
+        }
+
+        guard !udid.isEmpty else {
             return nil
         }
 
         let device = iPhoneDevice(
-            id: components[0],
-            name: components[1],
+            id: udid,
+            name: deviceName,
             isConnected: true,
             isShifted: isShifted,
             lastSeenAt: Date()
@@ -85,7 +105,7 @@ class DeviceManager: ObservableObject {
         )
 
         // Write profile to temporary file
-        let profilePath = "/tmp/focusshift-restrict.mobileconfig"
+        let profilePath = NSTemporaryDirectory() + "focusshift-restrict.mobileconfig"
         try profileXML.write(toFile: profilePath, atomically: true, encoding: .utf8)
 
         // Install the profile on the iPhone
@@ -179,6 +199,68 @@ class DeviceManager: ObservableObject {
         return apps
     }
 
+    // MARK: - Supervision Setup
+
+    /// Automated supervision workflow: backup → prepare → restore
+    /// This is a one-time setup that takes 10-15 minutes
+    func setupSupervision(progress: @escaping (String) -> Void) async throws {
+        await MainActor.run {
+            isProcessing = true
+            lastError = nil
+        }
+
+        defer {
+            Task { @MainActor in
+                isProcessing = false
+            }
+        }
+
+        // Check if already supervised
+        if try await isDeviceSupervised() {
+            throw NSError(
+                domain: "FocusShift",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Device is already supervised"]
+            )
+        }
+
+        // Step 1: Backup the device
+        await MainActor.run {
+            progress("Creating backup of your iPhone... (this may take a few minutes)")
+        }
+        let backupPath = NSTemporaryDirectory() + "focusshift-backup-\(UUID().uuidString)"
+        _ = try await runCommand([cfgutilPath, "backup", backupPath])
+        print("✅ Backup created at: \(backupPath)")
+
+        // Step 2: Prepare (supervise) the device
+        await MainActor.run {
+            progress("Supervising your iPhone... (device will restart)")
+        }
+        // Create supervision identity
+        _ = try await runCommand([
+            cfgutilPath,
+            "prepare",
+            "--supervised",
+            "--skip-language",
+            "--skip-region"
+        ])
+        print("✅ Device supervised")
+
+        // Step 3: Restore the backup
+        await MainActor.run {
+            progress("Restoring your data... (almost done!)")
+        }
+        _ = try await runCommand([cfgutilPath, "restore", backupPath])
+        print("✅ Backup restored")
+
+        await MainActor.run {
+            progress("Setup complete! 🎉")
+        }
+
+        // Clean up backup
+        try? FileManager.default.removeItem(atPath: backupPath)
+    }
+
     // MARK: - Emergency Operations
 
     /// Completely remove supervision from the iPhone (EMERGENCY USE ONLY)
@@ -228,13 +310,18 @@ class DeviceManager: ObservableObject {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let output = String(data: data, encoding: .utf8) ?? ""
 
+                print("📝 Command output: \(output)")
+                print("📝 Exit code: \(process.terminationStatus)")
+
                 if process.terminationStatus == 0 {
                     continuation.resume(returning: output)
                 } else {
+                    let errorMsg = "Command failed with code \(process.terminationStatus): \(output)"
+                    print("❌ \(errorMsg)")
                     continuation.resume(throwing: NSError(
                         domain: "FocusShift",
                         code: Int(process.terminationStatus),
-                        userInfo: [NSLocalizedDescriptionKey: "Command failed: \(output)"]
+                        userInfo: [NSLocalizedDescriptionKey: errorMsg]
                     ))
                 }
             } catch {

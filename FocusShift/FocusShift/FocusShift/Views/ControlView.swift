@@ -12,11 +12,22 @@ struct ControlView: View {
     @State private var selectedDuration: TimeInterval? = nil
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isSupervised = false
+    @State private var checkingSupervision = true
 
     // Available focus session durations (in seconds)
     private let durations: [TimeInterval?] = [nil, 30 * 60, 60 * 60, 90 * 60]
 
     var body: some View {
+        // Show setup wizard if device is connected but not supervised
+        if deviceManager.connectedDevice != nil && !isSupervised && !checkingSupervision {
+            SupervisionSetupView(deviceManager: deviceManager)
+        } else {
+            mainControlView
+        }
+    }
+
+    private var mainControlView: some View {
         VStack(spacing: 30) {
             // Connection Status
             StatusIndicatorView(deviceManager: deviceManager)
@@ -90,8 +101,15 @@ struct ControlView: View {
             // Detect device on appear
             do {
                 _ = try await deviceManager.detectDevice()
+
+                // Check if device is supervised
+                if deviceManager.connectedDevice != nil {
+                    isSupervised = (try? await deviceManager.isDeviceSupervised()) ?? false
+                }
+                checkingSupervision = false
             } catch {
                 print("Failed to detect device: \(error)")
+                checkingSupervision = false
             }
         }
     }
